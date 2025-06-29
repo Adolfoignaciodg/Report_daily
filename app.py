@@ -333,6 +333,7 @@ try:
             st.info("No hay operaciones en otros estados para este responsable.")
 
 except Exception as e:
-    st.error(f
+    st.error(f"❌ Error al cargar el archivo: {e}")
+
 
 

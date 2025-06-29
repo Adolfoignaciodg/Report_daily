@@ -8,13 +8,13 @@ Este proyecto es una **herramienta interactiva de visualización de datos operac
 
 ## 🧠 ¿Qué hace esta aplicación?
 
-###    Funcionalidades principales
+###   Funcionalidades principales
 - 📌 Muestra un **resumen general** del stock total por tipo de error (20 o 28), operaciones regularizadas y su desglose por tipo de programa (COVID, Chile Apoya, etc.).
 - 📈 Permite analizar la **producción mensual**, con métricas por tipo de error y un detalle por día del mes seleccionado.
 - 👤 Visualiza el **desempeño individual** de cada trabajador, destacando casos regularizados, pendientes, atrasados y otros estados operativos.
 - 📊 Incluye gráficos interactivos que comparan la producción **mes a mes** a lo largo de varios años.
 
-### 🧹 Automatizaciones y limpieza de datos
+###🧹 Automatizaciones y limpieza de datos 
 
 - La aplicación realiza varias tareas de limpieza y procesamiento automático de datos, para asegurar una visualización precisa y confiable:
 - 🔍 Elimina filas completamente vacías al cargar el archivo.

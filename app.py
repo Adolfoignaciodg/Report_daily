@@ -85,18 +85,37 @@ try:
         col3.metric("Error 20", formato_miles_punto(total_20))
         col4.metric("Regularizadas", formato_miles_punto(total_reg))
 
-        # Desglose de regularizadas por PROGRAMA con % y formato limpio
+        # ---- NUEVO: Días promedio de regularización ----
+        df_fechas = df[(df['ESTADO FINAL'] == 'REGULARIZADA') & df['FECHA'].notna() & df['Fecha de cierre'].notna()].copy()
+        if not df_fechas.empty:
+            df_fechas['dias_reg'] = (df_fechas['Fecha de cierre'] - df_fechas['FECHA']).dt.days
+            dias_promedio = round(df_fechas['dias_reg'].mean(), 1)
+            st.metric("Días promedio de regularización", f"{dias_promedio} días")
+
+        # ---- NUEVO: Gráfico circular de regularizadas por programa ----
         df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA']
-        programas = ['Tradicional', 'Reactiva', 'Chile Apoya', 'COVID']
-        conteo_programas = {p: len(df_reg[df_reg['PROGRAMA'].str.strip().str.upper() == p.upper()]) for p in programas}
-        total_prog = sum(conteo_programas.values())
-        
-        desglose_programas = []
-        for p in programas:
-            cant = conteo_programas[p]
-            porc = (cant / total_prog * 100) if total_prog > 0 else 0
-            desglose_programas.append(f"**{p}:** {formato_miles_punto(cant)} ({porc:.1f}%)")
-        st.markdown(" - ".join(desglose_programas))
+        df_reg['PROGRAMA'] = df_reg['PROGRAMA'].str.strip().str.upper()
+        programas = ['TRADICIONAL', 'REACTIVA', 'CHILE APOYA', 'COVID']
+        conteo_programas = df_reg['PROGRAMA'].value_counts().reindex(programas, fill_value=0).reset_index()
+        conteo_programas.columns = ['Programa', 'Cantidad']
+        conteo_programas['Porcentaje'] = (
+            conteo_programas['Cantidad'] / conteo_programas['Cantidad'].sum() * 100
+        ).round(1)
+
+        chart_pie = alt.Chart(conteo_programas).mark_arc(innerRadius=50).encode(
+            theta=alt.Theta(field="Cantidad", type="quantitative"),
+            color=alt.Color(field="Programa", type="nominal", scale=alt.Scale(scheme="tableau20")),
+            tooltip=[
+                alt.Tooltip("Programa", title="Programa"),
+                alt.Tooltip("Cantidad", title="Cantidad"),
+                alt.Tooltip("Porcentaje", title="%")
+            ]
+        ).properties(
+            title="Distribución de Regularizadas por Programa",
+            height=400,
+            width=400
+        )
+        st.altair_chart(chart_pie, use_container_width=False)
 
         st.markdown("---")
         st.subheader("Resumen por Colaborador y Tipo de Error")
@@ -314,5 +333,6 @@ try:
             st.info("No hay operaciones en otros estados para este responsable.")
 
 except Exception as e:
-    st.error(f"❌ Error al cargar el archivo: {e}")
+    st.error(f
+
 

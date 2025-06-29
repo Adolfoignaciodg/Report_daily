@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import calendar
 from datetime import datetime
-import altair as alt  # <- para gráficos interactivos en resumen y detalle por Colaborador
+import altair as alt  # <- para gráficos interactivos en resumen y detalle por trabajador
 
 # Paleta de colores uniforme y agradable para ambos gráficos
 paleta_colores_anos = ['#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F', '#EDC948']
@@ -26,7 +26,7 @@ st.set_page_config(
 st.title("Dashboard Stock Operacional")
 
 # --- Selección de vista antes de cargar archivo ---
-menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Colaborador"])
+menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Trabajador"])
 
 # --- Subida de archivo solo si está en "Resumen General" ---
 if menu == "Resumen General":
@@ -85,37 +85,18 @@ try:
         col3.metric("Error 20", formato_miles_punto(total_20))
         col4.metric("Regularizadas", formato_miles_punto(total_reg))
 
-        # ---- NUEVO: Días promedio de regularización ----
-        df_fechas = df[(df['ESTADO FINAL'] == 'REGULARIZADA') & df['FECHA'].notna() & df['Fecha de cierre'].notna()].copy()
-        if not df_fechas.empty:
-            df_fechas['dias_reg'] = (df_fechas['Fecha de cierre'] - df_fechas['FECHA']).dt.days
-            dias_promedio = round(df_fechas['dias_reg'].mean(), 1)
-            st.metric("Días promedio de regularización", f"{dias_promedio} días")
-
-        # ---- NUEVO: Gráfico circular de regularizadas por programa ----
+        # Desglose de regularizadas por PROGRAMA con % y formato limpio
         df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA']
-        df_reg['PROGRAMA'] = df_reg['PROGRAMA'].str.strip().str.upper()
-        programas = ['TRADICIONAL', 'REACTIVA', 'CHILE APOYA', 'COVID']
-        conteo_programas = df_reg['PROGRAMA'].value_counts().reindex(programas, fill_value=0).reset_index()
-        conteo_programas.columns = ['Programa', 'Cantidad']
-        conteo_programas['Porcentaje'] = (
-            conteo_programas['Cantidad'] / conteo_programas['Cantidad'].sum() * 100
-        ).round(1)
-
-        chart_pie = alt.Chart(conteo_programas).mark_arc(innerRadius=50).encode(
-            theta=alt.Theta(field="Cantidad", type="quantitative"),
-            color=alt.Color(field="Programa", type="nominal", scale=alt.Scale(scheme="tableau20")),
-            tooltip=[
-                alt.Tooltip("Programa", title="Programa"),
-                alt.Tooltip("Cantidad", title="Cantidad"),
-                alt.Tooltip("Porcentaje", title="%")
-            ]
-        ).properties(
-            title="Distribución de Regularizadas por Programa",
-            height=400,
-            width=400
-        )
-        st.altair_chart(chart_pie, use_container_width=False)
+        programas = ['Tradicional', 'Reactiva', 'Chile Apoya', 'COVID']
+        conteo_programas = {p: len(df_reg[df_reg['PROGRAMA'].str.strip().str.upper() == p.upper()]) for p in programas}
+        total_prog = sum(conteo_programas.values())
+        
+        desglose_programas = []
+        for p in programas:
+            cant = conteo_programas[p]
+            porc = (cant / total_prog * 100) if total_prog > 0 else 0
+            desglose_programas.append(f"**{p}:** {formato_miles_punto(cant)} ({porc:.1f}%)")
+        st.markdown(" - ".join(desglose_programas))
 
         st.markdown("---")
         st.subheader("Resumen por Colaborador y Tipo de Error")
@@ -208,7 +189,7 @@ try:
         else:
             st.info("No hay operaciones REGULARIZADAS este mes.")
 
-    elif menu == "Detalle por Colaborador":
+    elif menu == "Detalle por Trabajador":
         responsables = sorted(df['Responsable'].dropna().unique())
         seleccionado = st.selectbox("Selecciona un responsable", responsables)
 
@@ -270,7 +251,7 @@ try:
 
         st.markdown("### Resumen mensual de regularizadas")
 
-        # --- Gráfico Altair interactivo en Detalle por Colaborador ---
+        # --- Gráfico Altair interactivo en Detalle por Trabajador ---
         df_reg_historico = df_resp[
             (df_resp['ESTADO FINAL'] == 'REGULARIZADA') &
             (df_resp['Fecha de cierre'].notna())
@@ -334,6 +315,3 @@ try:
 
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo: {e}")
-
-
-

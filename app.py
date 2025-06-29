@@ -86,29 +86,44 @@ try:
         col4.metric("Regularizadas", formato_miles_punto(total_reg))
 
         # ---- NUEVO: Gráfico circular de regularizadas por programa ----
-        base = alt.Chart(conteo_programas).encode(
-            theta=alt.Theta(field="Cantidad", type="quantitative"),
-            color=alt.Color(field="Programa", type="nominal", scale=alt.Scale(scheme="tableau20")),
-        )
+   # ---- Gráfico circular de regularizadas por programa corregido ----
+df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA'].copy()
+df_reg['PROGRAMA'] = df_reg['PROGRAMA'].astype(str).str.strip().str.upper()
+df_reg = df_reg[df_reg['PROGRAMA'] != '']  # Elimina cadenas vacías si las hay
 
-        chart_pie = base.mark_arc(innerRadius=50).encode(
-            tooltip=[
-                alt.Tooltip("Programa", title="Programa"),
-                alt.Tooltip("Cantidad", title="Cantidad"),
-                alt.Tooltip("Porcentaje", title="%")
-            ]
-        )
+programas = ['TRADICIONAL', 'REACTIVA', 'CHILE APOYA', 'COVID']
+conteo_programas = df_reg['PROGRAMA'].value_counts().reindex(programas, fill_value=0).reset_index()
+conteo_programas.columns = ['Programa', 'Cantidad']
 
-        text = base.mark_text(radiusOffset=30, size=14, fontWeight="bold", color="black").encode(
-            text=alt.Text('Porcentaje:Q', format='.1f')
-        )
+# Evitar división por cero si no hay datos
+total_cantidad = conteo_programas['Cantidad'].sum()
+if total_cantidad > 0:
+    conteo_programas['Porcentaje'] = (conteo_programas['Cantidad'] / total_cantidad * 100).round(1)
+else:
+    conteo_programas['Porcentaje'] = 0
 
-        st.altair_chart((chart_pie + text).properties(
-            title="Distribución de Regularizadas por Programa",
-            height=400,
-            width=400
-        ), use_container_width=False)
+base = alt.Chart(conteo_programas).encode(
+    theta=alt.Theta(field="Cantidad", type="quantitative"),
+    color=alt.Color(field="Programa", type="nominal", scale=alt.Scale(scheme="tableau20")),
+)
 
+chart_pie = base.mark_arc(innerRadius=50).encode(
+    tooltip=[
+        alt.Tooltip("Programa", title="Programa"),
+        alt.Tooltip("Cantidad", title="Cantidad"),
+        alt.Tooltip("Porcentaje", title="%")
+    ]
+)
+
+text = base.mark_text(radiusOffset=20).encode(
+    text=alt.Text('Porcentaje:Q', format='.1f')
+)
+
+st.altair_chart((chart_pie + text).properties(
+    title="Distribución de Regularizadas por Programa",
+    height=400,
+    width=400
+), use_container_width=False)
         # --- Gráfico Altair interactivo en Resumen General ---
         df_reg_historico = df_reg.copy()
         df_reg_historico = df_reg_historico[df_reg_historico['Fecha de cierre'].notna()]

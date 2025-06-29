@@ -86,15 +86,6 @@ try:
         col4.metric("Regularizadas", formato_miles_punto(total_reg))
 
         # ---- NUEVO: Gráfico circular de regularizadas por programa ----
-        df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA']
-        df_reg['PROGRAMA'] = df_reg['PROGRAMA'].str.strip().str.upper()
-        programas = ['TRADICIONAL', 'REACTIVA', 'CHILE APOYA', 'COVID']
-        conteo_programas = df_reg['PROGRAMA'].value_counts().reindex(programas, fill_value=0).reset_index()
-        conteo_programas.columns = ['Programa', 'Cantidad']
-        conteo_programas['Porcentaje'] = (
-            conteo_programas['Cantidad'] / conteo_programas['Cantidad'].sum() * 100
-        ).round(1)
-
         base = alt.Chart(conteo_programas).encode(
             theta=alt.Theta(field="Cantidad", type="quantitative"),
             color=alt.Color(field="Programa", type="nominal", scale=alt.Scale(scheme="tableau20")),
@@ -108,7 +99,7 @@ try:
             ]
         )
 
-        text = base.mark_text(radiusOffset=20).encode(
+        text = base.mark_text(radiusOffset=30, size=14, fontWeight="bold", color="black").encode(
             text=alt.Text('Porcentaje:Q', format='.1f')
         )
 
@@ -117,7 +108,6 @@ try:
             height=400,
             width=400
         ), use_container_width=False)
-
 
         # --- Gráfico Altair interactivo en Resumen General ---
         df_reg_historico = df_reg.copy()

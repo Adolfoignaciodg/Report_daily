@@ -85,45 +85,44 @@ try:
         col3.metric("Error 20", formato_miles_punto(total_20))
         col4.metric("Regularizadas", formato_miles_punto(total_reg))
 
-        # ---- NUEVO: Gráfico circular de regularizadas por programa ----
-   # ---- Gráfico circular de regularizadas por programa corregido ----
-df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA'].copy()
-df_reg['PROGRAMA'] = df_reg['PROGRAMA'].astype(str).str.strip().str.upper()
-df_reg = df_reg[df_reg['PROGRAMA'] != '']  # Elimina cadenas vacías si las hay
+        # ---- Gráfico circular corregido ----
+        df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA'].copy()
+        df_reg['PROGRAMA'] = df_reg['PROGRAMA'].astype(str).str.strip().str.upper()
+        df_reg = df_reg[df_reg['PROGRAMA'] != '']
 
-programas = ['TRADICIONAL', 'REACTIVA', 'CHILE APOYA', 'COVID']
-conteo_programas = df_reg['PROGRAMA'].value_counts().reindex(programas, fill_value=0).reset_index()
-conteo_programas.columns = ['Programa', 'Cantidad']
+        programas = ['TRADICIONAL', 'REACTIVA', 'CHILE APOYA', 'COVID']
+        conteo_programas = df_reg['PROGRAMA'].value_counts().reindex(programas, fill_value=0).reset_index()
+        conteo_programas.columns = ['Programa', 'Cantidad']
 
-# Evitar división por cero si no hay datos
-total_cantidad = conteo_programas['Cantidad'].sum()
-if total_cantidad > 0:
-    conteo_programas['Porcentaje'] = (conteo_programas['Cantidad'] / total_cantidad * 100).round(1)
-else:
-    conteo_programas['Porcentaje'] = 0
+        total_cantidad = conteo_programas['Cantidad'].sum()
+        if total_cantidad > 0:
+            conteo_programas['Porcentaje'] = (conteo_programas['Cantidad'] / total_cantidad * 100).round(1)
+        else:
+            conteo_programas['Porcentaje'] = 0
 
-base = alt.Chart(conteo_programas).encode(
-    theta=alt.Theta(field="Cantidad", type="quantitative"),
-    color=alt.Color(field="Programa", type="nominal", scale=alt.Scale(scheme="tableau20")),
-)
+        base = alt.Chart(conteo_programas).encode(
+            theta=alt.Theta(field="Cantidad", type="quantitative"),
+            color=alt.Color(field="Programa", type="nominal", scale=alt.Scale(scheme="tableau20")),
+        )
 
-chart_pie = base.mark_arc(innerRadius=50).encode(
-    tooltip=[
-        alt.Tooltip("Programa", title="Programa"),
-        alt.Tooltip("Cantidad", title="Cantidad"),
-        alt.Tooltip("Porcentaje", title="%")
-    ]
-)
+        chart_pie = base.mark_arc(innerRadius=50).encode(
+            tooltip=[
+                alt.Tooltip("Programa", title="Programa"),
+                alt.Tooltip("Cantidad", title="Cantidad"),
+                alt.Tooltip("Porcentaje", title="%")
+            ]
+        )
 
-text = base.mark_text(radiusOffset=20).encode(
-    text=alt.Text('Porcentaje:Q', format='.1f')
-)
+        text = base.mark_text(radiusOffset=20).encode(
+            text=alt.Text('Porcentaje:Q', format='.1f')
+        )
 
-st.altair_chart((chart_pie + text).properties(
-    title="Distribución de Regularizadas por Programa",
-    height=400,
-    width=400
-), use_container_width=False)
+        st.altair_chart((chart_pie + text).properties(
+            title="Distribución de Regularizadas por Programa",
+            height=400,
+            width=400
+        ), use_container_width=False)
+
         # --- Gráfico Altair interactivo en Resumen General ---
         df_reg_historico = df_reg.copy()
         df_reg_historico = df_reg_historico[df_reg_historico['Fecha de cierre'].notna()]
@@ -163,7 +162,6 @@ st.altair_chart((chart_pie + text).properties(
             .interactive()
         )
         st.altair_chart(chart, use_container_width=True)
-
 
     elif menu == "Producción Total Mensual":
         st.subheader("Producción Total Mensual")
@@ -331,3 +329,4 @@ st.altair_chart((chart_pie + text).properties(
 
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo: {e}")
+

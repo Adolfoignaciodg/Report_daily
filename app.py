@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import calendar
 from datetime import datetime
-import altair as alt  # <- para gráficos interactivos en resumen y detalle por trabajador
+import altair as alt  # <- para gráficos interactivos en resumen y detalle por Colaborador
 
 # Paleta de colores uniforme y agradable para ambos gráficos
 paleta_colores_anos = ['#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F', '#EDC948']
@@ -26,7 +26,7 @@ st.set_page_config(
 st.title("Dashboard Stock Operacional")
 
 # --- Selección de vista antes de cargar archivo ---
-menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Trabajador"])
+menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Colaborador"])
 
 # --- Subida de archivo solo si está en "Resumen General" ---
 if menu == "Resumen General":
@@ -85,28 +85,39 @@ try:
         col3.metric("Error 20", formato_miles_punto(total_20))
         col4.metric("Regularizadas", formato_miles_punto(total_reg))
 
-        # Desglose de regularizadas por PROGRAMA con % y formato limpio
+        # ---- NUEVO: Gráfico circular de regularizadas por programa ----
         df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA']
-        programas = ['Tradicional', 'Reactiva', 'Chile Apoya', 'COVID']
-        conteo_programas = {p: len(df_reg[df_reg['PROGRAMA'].str.strip().str.upper() == p.upper()]) for p in programas}
-        total_prog = sum(conteo_programas.values())
-        
-        desglose_programas = []
-        for p in programas:
-            cant = conteo_programas[p]
-            porc = (cant / total_prog * 100) if total_prog > 0 else 0
-            desglose_programas.append(f"**{p}:** {formato_miles_punto(cant)} ({porc:.1f}%)")
-        st.markdown(" - ".join(desglose_programas))
+        df_reg['PROGRAMA'] = df_reg['PROGRAMA'].str.strip().str.upper()
+        programas = ['TRADICIONAL', 'REACTIVA', 'CHILE APOYA', 'COVID']
+        conteo_programas = df_reg['PROGRAMA'].value_counts().reindex(programas, fill_value=0).reset_index()
+        conteo_programas.columns = ['Programa', 'Cantidad']
+        conteo_programas['Porcentaje'] = (
+            conteo_programas['Cantidad'] / conteo_programas['Cantidad'].sum() * 100
+        ).round(1)
 
-        st.markdown("---")
-        st.subheader("Resumen por Colaborador y Tipo de Error")
+        base = alt.Chart(conteo_programas).encode(
+            theta=alt.Theta(field="Cantidad", type="quantitative"),
+            color=alt.Color(field="Programa", type="nominal", scale=alt.Scale(scheme="tableau20")),
+        )
 
-        df_resumen = df[df['TIPO_ERROR'].notna() & (df['TIPO_ERROR'].str.strip() != '')]
-        resumen = df_resumen.groupby(["Responsable", "TIPO_ERROR"]).size().unstack(fill_value=0)
-        resumen["TOTAL"] = resumen.sum(axis=1)
-        resumen = resumen.sort_values("TOTAL", ascending=False)
-        resumen_display = resumen.applymap(formato_miles_punto)
-        st.dataframe(resumen_display, use_container_width=True)
+        chart_pie = base.mark_arc(innerRadius=50).encode(
+            tooltip=[
+                alt.Tooltip("Programa", title="Programa"),
+                alt.Tooltip("Cantidad", title="Cantidad"),
+                alt.Tooltip("Porcentaje", title="%")
+            ]
+        )
+
+        text = base.mark_text(radiusOffset=20).encode(
+            text=alt.Text('Porcentaje:Q', format='.1f')
+        )
+
+        st.altair_chart((chart_pie + text).properties(
+            title="Distribución de Regularizadas por Programa",
+            height=400,
+            width=400
+        ), use_container_width=False)
+
 
         # --- Gráfico Altair interactivo en Resumen General ---
         df_reg_historico = df_reg.copy()
@@ -189,7 +200,7 @@ try:
         else:
             st.info("No hay operaciones REGULARIZADAS este mes.")
 
-    elif menu == "Detalle por Trabajador":
+    elif menu == "Detalle por Colaborador":
         responsables = sorted(df['Responsable'].dropna().unique())
         seleccionado = st.selectbox("Selecciona un responsable", responsables)
 
@@ -251,7 +262,7 @@ try:
 
         st.markdown("### Resumen mensual de regularizadas")
 
-        # --- Gráfico Altair interactivo en Detalle por Trabajador ---
+        # --- Gráfico Altair interactivo en Detalle por Colaborador ---
         df_reg_historico = df_resp[
             (df_resp['ESTADO FINAL'] == 'REGULARIZADA') &
             (df_resp['Fecha de cierre'].notna())

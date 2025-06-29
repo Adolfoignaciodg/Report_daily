@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import calendar
 from datetime import datetime
-import altair as alt  # <- para gráficos interactivos en resumen y detalle por trabajador
+import altair as alt  # <- para gráficos interactivos en resumen y detalle por Colaborador
 
 # Paleta de colores uniforme y agradable para ambos gráficos
 paleta_colores_anos = ['#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F', '#EDC948']
@@ -26,7 +26,7 @@ st.set_page_config(
 st.title("Dashboard Stock Operacional")
 
 # --- Selección de vista antes de cargar archivo ---
-menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Trabajador"])
+menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Colaborador"])
 
 # --- Subida de archivo solo si está en "Resumen General" ---
 if menu == "Resumen General":
@@ -189,7 +189,7 @@ try:
         else:
             st.info("No hay operaciones REGULARIZADAS este mes.")
 
-    elif menu == "Detalle por Trabajador":
+    elif menu == "Detalle por Colaborador":
         responsables = sorted(df['Responsable'].dropna().unique())
         seleccionado = st.selectbox("Selecciona un responsable", responsables)
 
@@ -251,7 +251,7 @@ try:
 
         st.markdown("### Resumen mensual de regularizadas")
 
-        # --- Gráfico Altair interactivo en Detalle por Trabajador ---
+        # --- Gráfico Altair interactivo en Detalle por Colaborador ---
         df_reg_historico = df_resp[
             (df_resp['ESTADO FINAL'] == 'REGULARIZADA') &
             (df_resp['Fecha de cierre'].notna())

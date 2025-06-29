@@ -13,6 +13,20 @@ Este proyecto es una **herramienta interactiva de visualización de datos operac
 - 👤 Visualiza el **desempeño individual** de cada trabajador, destacando casos regularizados, pendientes, atrasados y otros estados operativos.
 - 📊 Incluye gráficos interactivos que comparan la producción **mes a mes** a lo largo de varios años.
 
+### 🧹 Automatizaciones y limpieza de datos
+
+- La aplicación realiza varias tareas de limpieza y procesamiento automático de datos, para asegurar una visualización precisa y confiable:
+- 🔍 Elimina filas completamente vacías al cargar el archivo.
+- 📛 Normaliza los nombres de los responsables (capitalización, espacios y formatos).
+- 🗂️ Estandariza los valores del campo ESTADO FINAL, convirtiéndolos a mayúsculas para evitar duplicidades.
+- 🕒 Convierte las fechas (FECHA y Fecha de cierre) a formato datetime, con manejo de errores incluidos.
+- 🧼 Filtra registros sin responsable o con valores vacíos en campos críticos.
+- ⚠️ Muestra advertencias si hay registros sin estado final, ayudando a detectar problemas en la fuente de datos.
+- 🔢 Formatea los números con punto como separador de miles y sin decimales, para una lectura clara.
+- ❌ Si ocurre un error al leer el archivo o las hojas, se muestra un mensaje amigable para el usuario final.
+
+
+
 ---
 
 ## 📁 Sobre los datos (archivo: `reporte.xlsx`)

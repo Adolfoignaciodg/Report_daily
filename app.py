@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import calendar
 from datetime import datetime
-import altair as alt  # <- para gráficos interactivos en resumen y detalle por trabajador
+import altair as alt
 
 # Paleta de colores uniforme y agradable para ambos gráficos
 paleta_colores_anos = ['#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F', '#EDC948']
@@ -74,6 +74,7 @@ try:
     # --------------------- VISTAS ---------------------
 
     if menu == "Resumen General":
+        # Métricas generales
         total_stock = len(df)
         total_20 = len(df[df['TIPO_ERROR'] == 'Error 20'])
         total_28 = len(df[df['TIPO_ERROR'] == 'Error 28'])
@@ -85,12 +86,11 @@ try:
         col3.metric("Error 20", formato_miles_punto(total_20))
         col4.metric("Regularizadas", formato_miles_punto(total_reg))
 
-        # Desglose de regularizadas por PROGRAMA con % y formato limpio
+        # Desglose regularizadas por programa con porcentaje
         df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA']
         programas = ['Tradicional', 'Reactiva', 'Chile Apoya', 'COVID']
         conteo_programas = {p: len(df_reg[df_reg['PROGRAMA'].str.strip().str.upper() == p.upper()]) for p in programas}
         total_prog = sum(conteo_programas.values())
-        
         desglose_programas = []
         for p in programas:
             cant = conteo_programas[p]
@@ -108,17 +108,17 @@ try:
         resumen_display = resumen.applymap(formato_miles_punto)
         st.dataframe(resumen_display, use_container_width=True)
 
-        # --- Gráfico Altair interactivo en Resumen General ---
+        # --- Gráfico de barras agrupadas: Regularizadas mes a mes por año ---
         df_reg_historico = df_reg.copy()
         df_reg_historico = df_reg_historico[df_reg_historico['Fecha de cierre'].notna()]
         df_reg_historico['Año'] = df_reg_historico['Fecha de cierre'].dt.year
         df_reg_historico['Mes'] = df_reg_historico['Fecha de cierre'].dt.month
 
         años = sorted(df_reg_historico['Año'].unique())
-        todos_los_meses = pd.DataFrame([(a,m) for a in años for m in range(1,13)], columns=['Año', 'Mes'])
+        todos_los_meses = pd.DataFrame([(a, m) for a in años for m in range(1, 13)], columns=['Año', 'Mes'])
 
         resumen_mensual = df_reg_historico.groupby(['Año', 'Mes']).size().reset_index(name='Cantidad')
-        resumen_mensual = pd.merge(todos_los_meses, resumen_mensual, on=['Año','Mes'], how='left').fillna(0)
+        resumen_mensual = pd.merge(todos_los_meses, resumen_mensual, on=['Año', 'Mes'], how='left').fillna(0)
         resumen_mensual['Cantidad'] = resumen_mensual['Cantidad'].astype(int)
         resumen_mensual['Mes_nombre'] = resumen_mensual['Mes'].apply(lambda x: calendar.month_name[x])
 
@@ -133,6 +133,7 @@ try:
                 color=alt.Color('Año:N',
                                 scale=alt.Scale(range=paleta_colores_anos),
                                 legend=alt.Legend(title="Año")),
+                xOffset='Año:N',  # Agrupa las barras por año dentro del mes
                 tooltip=[
                     alt.Tooltip('Mes_nombre:N', title='Mes'),
                     alt.Tooltip('Año:N', title='Año'),
@@ -142,11 +143,20 @@ try:
             .properties(
                 width=700,
                 height=400,
-                title="Regularizadas mes a mes por año"
+                title="Regularizadas mes a mes por año (Barras agrupadas)"
             )
             .interactive()
         )
         st.altair_chart(chart, use_container_width=True)
+
+        # --- Tabla resumen con meses como filas y años como columnas ---
+        tabla_resumen = resumen_mensual.pivot_table(index='Mes_nombre', columns='Año', values='Cantidad', fill_value=0)
+        tabla_resumen = tabla_resumen.reindex(meses_orden)  # Orden cronológico
+
+        tabla_resumen_formateada = tabla_resumen.applymap(formato_miles_punto)
+
+        st.subheader("Tabla de Regularizadas por Mes y Año")
+        st.dataframe(tabla_resumen_formateada, use_container_width=True)
 
 
     elif menu == "Producción Total Mensual":
@@ -188,6 +198,7 @@ try:
             st.dataframe(conteo, use_container_width=True)
         else:
             st.info("No hay operaciones REGULARIZADAS este mes.")
+
 
     elif menu == "Detalle por Trabajador":
         responsables = sorted(df['Responsable'].dropna().unique())
@@ -251,7 +262,7 @@ try:
 
         st.markdown("### Resumen mensual de regularizadas")
 
-        # --- Gráfico Altair interactivo en Detalle por Trabajador ---
+        # Gráfico Altair por trabajador
         df_reg_historico = df_resp[
             (df_resp['ESTADO FINAL'] == 'REGULARIZADA') &
             (df_resp['Fecha de cierre'].notna())
@@ -278,6 +289,7 @@ try:
                 color=alt.Color('Año:N',
                                 scale=alt.Scale(range=paleta_colores_anos),
                                 legend=alt.Legend(title="Año")),
+                xOffset='Año:N',  # Agrupado por año dentro del mes
                 tooltip=[
                     alt.Tooltip('Mes_nombre:N', title='Mes'),
                     alt.Tooltip('Año:N', title='Año'),
@@ -315,4 +327,3 @@ try:
 
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo: {e}")
-

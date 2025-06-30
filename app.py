@@ -26,7 +26,7 @@ st.set_page_config(
 st.title("Dashboard Stock Operacional")
 
 # --- Selección de vista antes de cargar archivo ---
-menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Trabajador"])
+menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Trabajador", "proyección de meta"])
 
 # --- Subida de archivo solo si está en "Resumen General" ---
 if menu == "Resumen General":
@@ -159,7 +159,7 @@ try:
         st.dataframe(tabla_resumen_formateada, use_container_width=True)
 
 
-    elif menu == "Producción Total Mensual":
+elif menu == "Producción Total Mensual":
         st.subheader("Producción Total Mensual")
 
         df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA'].copy()
@@ -325,5 +325,107 @@ try:
         else:
             st.info("No hay operaciones en otros estados para este responsable.")
 
+       elif menu == "proyección de meta":
+        st.title("📈 Proyección de Cumplimiento de Meta")
+        
+        # Filtro: Seleccionar responsable o todo el equipo
+        responsables = ["Todo el equipo"] + sorted(df['Responsable'].dropna().unique())
+        seleccionado = st.selectbox("Selecciona responsable", responsables)
+        
+        # Filtra según responsable y solo regularizadas con fecha de cierre válida
+        if seleccionado == "Todo el equipo":
+            df_filtrado = df[(df['ESTADO FINAL'] == 'REGULARIZADA') & df['Fecha de cierre'].notna()].copy()
+        else:
+            df_filtrado = df[
+                (df['Responsable'] == seleccionado) &
+                (df['ESTADO FINAL'] == 'REGULARIZADA') &
+                (df['Fecha de cierre'].notna())
+            ].copy()
+
+        # Fechas clave
+        hoy = pd.Timestamp.now().normalize()
+        inicio_mes = hoy.replace(day=1)
+        fin_mes = hoy.replace(day=calendar.monthrange(hoy.year, hoy.month)[1])
+
+        # Feriados
+        feriados = [
+            pd.Timestamp("2025-06-21"),  # Pueblos originarios
+            pd.Timestamp("2025-07-16"),  # Virgen del Carmen
+            pd.Timestamp("2025-09-18"),  # Fiestas Patrias
+            pd.Timestamp("2025-09-19"),
+        ]
+
+        # Días hábiles
+        calendario = pd.date_range(start=inicio_mes, end=fin_mes, freq='B')
+        calendario = [d for d in calendario if d not in feriados]
+        dias_habiles_hasta_hoy = len([d for d in calendario if d <= hoy])
+        dias_habiles_restantes = len(calendario) - dias_habiles_hasta_hoy
+
+        # Avance y proyección
+        reg_actual = len(df_filtrado[(df_filtrado['Fecha de cierre'] >= inicio_mes) & (df_filtrado['Fecha de cierre'] <= hoy)])
+        promedio_diario = reg_actual / dias_habiles_hasta_hoy if dias_habiles_hasta_hoy else 0
+        proyeccion = reg_actual + promedio_diario * dias_habiles_restantes
+
+        # Métricas
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.metric("Avance actual (mes)", formato_miles_punto(reg_actual))
+        col2.metric("Promedio diario (hábil)", f"{promedio_diario:.2f}")
+        col3.metric("Proyección fin de mes", formato_miles_punto(int(proyeccion)))
+
+        # Metas
+        if seleccionado == "Todo el equipo":
+            n = len(responsables) - 1
+            meta_min, meta_med, meta_max = 350*n, 550*n, 850*n
+        else:
+            meta_min, meta_med, meta_max = 350, 550, 850
+
+        col4.metric("Meta mínima", formato_miles_punto(meta_min))
+        col5.metric("Meta máxima", formato_miles_punto(meta_max))
+
+        # Mensaje de ritmo
+        if proyeccion >= meta_max:
+            st.success("✅ Proyectas sobre la meta máxima.")
+        elif proyeccion >= meta_min:
+            st.success("👍 Cumplirías la meta mínima.")
+        else:
+            st.warning("⚠️ No alcanzarías la meta mínima.")
+
+        # Datos para el gráfico
+        dias = list(range(1, dias_habiles_hasta_hoy+1))
+        acumulado = [promedio_diario*i for i in dias]
+        df_chart = pd.DataFrame({"Día hábil": dias, "Acumulado": acumulado})
+
+        # Gráfico base
+        base = alt.Chart(df_chart).mark_line(point=True).encode(
+            x=alt.X('Día hábil:Q', title='Día hábil'),
+            y=alt.Y('Acumulado:Q', title='Acumulado'),
+            tooltip=[alt.Tooltip('Día hábil:Q', title='Día hábil'), alt.Tooltip('Acumulado:Q')]
+        )
+
+        # Líneas de hitos
+        hits = {"Meta mínima": meta_min, "Meta media": meta_med, "Meta máxima": meta_max}
+        reglas = []
+        for label, val in hits.items():
+            reglas.append(
+                alt.Chart(pd.DataFrame({'y': [val], 'label':[label]}))
+                .mark_rule(color='green', strokeDash=[4,4])
+                .encode(
+                    y='y:Q',
+                    tooltip=alt.Tooltip('label:N', title='Hito')
+                )
+            )
+
+        chart = alt.layer(base, *reglas).properties(
+            width=700, height=400,
+            title="Avance acumulado con hitos referenciales"
+        ).interactive()
+
+        st.altair_chart(chart, use_container_width=True)
+
+        # Cita profesional
+        st.caption("💡 Como dijo Peter Drucker: “Lo que no se mide, no se puede mejorar.”")
+
 except Exception as e:
-    st.error(f"❌ Error al cargar el archivo: {e}")
+    st.error(f"❌ Error al procesar el archivo o generar el dashboard: {e}")
+
+

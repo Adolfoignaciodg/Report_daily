@@ -159,7 +159,7 @@ try:
         st.dataframe(tabla_resumen_formateada, use_container_width=True)
 
 
-elif menu == "Producción Total Mensual":
+   elif menu == "Producción Total Mensual":
         st.subheader("Producción Total Mensual")
 
         df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA'].copy()
@@ -325,7 +325,7 @@ elif menu == "Producción Total Mensual":
         else:
             st.info("No hay operaciones en otros estados para este responsable.")
 
-       elif menu == "proyección de meta":
+    elif menu == "proyección de meta":
         st.title("📈 Proyección de Cumplimiento de Meta")
         
         # Filtro: Seleccionar responsable o todo el equipo

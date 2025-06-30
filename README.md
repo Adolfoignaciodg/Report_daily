@@ -45,9 +45,14 @@ Este archivo contiene datos **ficticios** con la misma estructura que una operac
 
 ---
 
-## 🛠️ Requisitos previos
+
+
+## 🚀 Cómo ejecutar el proyecto paso a paso
+
+### 1. 🛠️ Requisitos previos
 
 Antes de comenzar, asegúrate de tener:
+
 ```
 - Python 3.10 o superior
 - pip (administrador de paquetes de Python)
@@ -56,16 +61,7 @@ Antes de comenzar, asegúrate de tener:
 
 ---
 
-## 🚀 Cómo ejecutar el proyecto paso a paso
 
-### 1. Clona el repositorio (opcional)
-
-Si usas Git:
-
-```
-git clone https://github.com/tu-usuario/dashboard-operacional.git
-cd dashboard-operacional
-```
 
 ---
 

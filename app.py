@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import calendar
 from datetime import datetime
-import altair as alt  # <- para gráficos interactivos en resumen y detalle por trabajador
+import altair as alt  # para gráficos interactivos en resumen y detalle por trabajador
 import matplotlib.pyplot as plt
 
 # Paleta de colores uniforme y agradable para ambos gráficos
@@ -92,6 +92,7 @@ try:
         conteo_programas = {p: len(df_reg[df_reg['PROGRAMA'].str.strip().str.upper() == p.upper()]) for p in programas}
         total_prog = sum(conteo_programas.values())
         
+        # Mostrar desglose en texto con números y %
         desglose_programas = []
         for p in programas:
             cant = conteo_programas[p]
@@ -99,30 +100,22 @@ try:
             desglose_programas.append(f"**{p}:** {formato_miles_punto(cant)} ({porc:.1f}%)")
         st.markdown(" - ".join(desglose_programas))
 
-        # --- Gráfico circular con etiquetas visibles ---
+        # --- Gráfico circular chico solo con porcentajes (sin números) ---
         if total_prog > 0:
-            fig, ax = plt.subplots(figsize=(6, 6))
+            fig, ax = plt.subplots(figsize=(4,4))  # tamaño pequeño
             sizes = [conteo_programas[p] for p in programas]
             colors = paleta_colores_anos[:len(programas)]
-
-            def make_autopct(sizes):
-                def my_autopct(pct):
-                    total = sum(sizes)
-                    val = int(round(pct*total/100.0))
-                    return f"{val}\n({pct:.1f}%)"
-                return my_autopct
-
             wedges, texts, autotexts = ax.pie(
                 sizes,
                 labels=programas,
-                autopct=make_autopct(sizes),
+                autopct='%1.1f%%',  # solo porcentaje
                 colors=colors,
-                textprops={'color':"black", 'weight':'bold', 'fontsize':12},
+                textprops={'color':"black", 'weight':'bold', 'fontsize':10},
                 startangle=90,
-                pctdistance=0.8
+                pctdistance=0.75
             )
             ax.axis('equal')
-            plt.title("Desglose Programas Regularizadas", fontsize=16, weight='bold')
+            plt.title("Porcentaje Programas Regularizadas", fontsize=12, weight='bold')
             st.pyplot(fig)
 
         st.markdown("---")
@@ -174,7 +167,6 @@ try:
             .interactive()
         )
         st.altair_chart(chart, use_container_width=True)
-
 
     elif menu == "Producción Total Mensual":
         st.subheader("Producción Total Mensual")

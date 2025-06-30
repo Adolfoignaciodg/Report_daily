@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 import calendar
 from datetime import datetime
-import altair as alt  # para gráficos interactivos en resumen y detalle por trabajador
-import matplotlib.pyplot as plt
+import altair as alt  # <- para gráficos interactivos en resumen y detalle por trabajador
 
 # Paleta de colores uniforme y agradable para ambos gráficos
 paleta_colores_anos = ['#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F', '#EDC948']
@@ -92,31 +91,12 @@ try:
         conteo_programas = {p: len(df_reg[df_reg['PROGRAMA'].str.strip().str.upper() == p.upper()]) for p in programas}
         total_prog = sum(conteo_programas.values())
         
-        # Mostrar desglose en texto con números y %
         desglose_programas = []
         for p in programas:
             cant = conteo_programas[p]
             porc = (cant / total_prog * 100) if total_prog > 0 else 0
             desglose_programas.append(f"**{p}:** {formato_miles_punto(cant)} ({porc:.1f}%)")
         st.markdown(" - ".join(desglose_programas))
-
-        # --- Gráfico circular chico solo con porcentajes (sin números) ---
-        if total_prog > 0:
-            fig, ax = plt.subplots(figsize=(4,4))  # tamaño pequeño
-            sizes = [conteo_programas[p] for p in programas]
-            colors = paleta_colores_anos[:len(programas)]
-            wedges, texts, autotexts = ax.pie(
-                sizes,
-                labels=programas,
-                autopct='%1.1f%%',  # solo porcentaje
-                colors=colors,
-                textprops={'color':"black", 'weight':'bold', 'fontsize':10},
-                startangle=90,
-                pctdistance=0.75
-            )
-            ax.axis('equal')
-            plt.title("Porcentaje Programas Regularizadas", fontsize=12, weight='bold')
-            st.pyplot(fig)
 
         st.markdown("---")
         st.subheader("Resumen por Colaborador y Tipo de Error")
@@ -167,6 +147,7 @@ try:
             .interactive()
         )
         st.altair_chart(chart, use_container_width=True)
+
 
     elif menu == "Producción Total Mensual":
         st.subheader("Producción Total Mensual")
@@ -334,3 +315,4 @@ try:
 
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo: {e}")
+

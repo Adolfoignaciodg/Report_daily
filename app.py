@@ -324,7 +324,9 @@ try:
             st.dataframe(resumen_otros, use_container_width=True)
         else:
             st.info("No hay operaciones en otros estados para este responsable.")
-elif menu == "proyección de meta":
+            
+        elif menu == "proyección de meta":
+            
         st.title("📈 Proyección de Cumplimiento de Meta")
         
         # Filtro: Seleccionar responsable o todo el equipo

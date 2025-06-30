@@ -325,7 +325,7 @@ try:
         else:
             st.info("No hay operaciones en otros estados para este responsable.")
 
-    elif menu == "proyección de meta":
+        elif menu == "proyección de meta":
         st.title("📈 Proyección de Cumplimiento de Meta")
         
         # Filtro: Seleccionar responsable o todo el equipo
@@ -346,82 +346,84 @@ try:
         hoy = pd.Timestamp.now().normalize()
         inicio_mes = hoy.replace(day=1)
         fin_mes = hoy.replace(day=calendar.monthrange(hoy.year, hoy.month)[1])
-        
-        # Lista de feriados (puedes mejorar cargando un archivo o API)
+
+        # Feriados
         feriados = [
             pd.Timestamp("2025-06-21"),  # Pueblos originarios
             pd.Timestamp("2025-07-16"),  # Virgen del Carmen
             pd.Timestamp("2025-09-18"),  # Fiestas Patrias
             pd.Timestamp("2025-09-19"),
-            # Agrega más si quieres
         ]
 
-        # Generar rango de días hábiles en el mes (lunes a viernes, sin feriados)
+        # Días hábiles
         calendario = pd.date_range(start=inicio_mes, end=fin_mes, freq='B')
         calendario = [d for d in calendario if d not in feriados]
-
-        dias_habiles_totales = len(calendario)
         dias_habiles_hasta_hoy = len([d for d in calendario if d <= hoy])
-        dias_habiles_restantes = dias_habiles_totales - dias_habiles_hasta_hoy
+        dias_habiles_restantes = len(calendario) - dias_habiles_hasta_hoy
 
-        # Avance actual: cantidad de regularizadas entre inicio mes y hoy
-        reg_actual = len(df_filtrado[
-            (df_filtrado['Fecha de cierre'] >= inicio_mes) &
-            (df_filtrado['Fecha de cierre'] <= hoy)
-        ])
+        # Avance y proyección
+        reg_actual = len(df_filtrado[(df_filtrado['Fecha de cierre'] >= inicio_mes) & (df_filtrado['Fecha de cierre'] <= hoy)])
+        promedio_diario = reg_actual / dias_habiles_hasta_hoy if dias_habiles_hasta_hoy else 0
+        proyeccion = reg_actual + promedio_diario * dias_habiles_restantes
 
-        # Promedio diario y proyección
-        promedio_diario = reg_actual / dias_habiles_hasta_hoy if dias_habiles_hasta_hoy > 0 else 0
-        proyeccion = reg_actual + (promedio_diario * dias_habiles_restantes)
-
-        # Mostrar métricas
+        # Métricas
         col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("Avance actual (mes)", formato_miles_punto(reg_actual))
         col2.metric("Promedio diario (hábil)", f"{promedio_diario:.2f}")
         col3.metric("Proyección fin de mes", formato_miles_punto(int(proyeccion)))
 
-        # Definir metas según responsable o equipo
+        # Metas
         if seleccionado == "Todo el equipo":
-            n_resp = len(responsables) - 1  # Restar la opción 'Todo el equipo'
-            meta_min = 350 * n_resp
-            meta_max = 850 * n_resp
+            n = len(responsables) - 1
+            meta_min, meta_med, meta_max = 350*n, 550*n, 850*n
         else:
-            meta_min = 350
-            meta_max = 850
-        
+            meta_min, meta_med, meta_max = 350, 550, 850
+
         col4.metric("Meta mínima", formato_miles_punto(meta_min))
         col5.metric("Meta máxima", formato_miles_punto(meta_max))
 
-        # Evaluación del ritmo
+        # Mensaje de ritmo
         if proyeccion >= meta_max:
-            st.success("✅ Estás proyectando sobre la meta máxima del rango.")
+            st.success("✅ Proyectas sobre la meta máxima.")
         elif proyeccion >= meta_min:
-            st.success("👍 Con el ritmo actual cumplirías al menos la meta mínima.")
+            st.success("👍 Cumplirías la meta mínima.")
         else:
-            st.warning("⚠️ Al ritmo actual, no se cumpliría la meta mínima.")
+            st.warning("⚠️ No alcanzarías la meta mínima.")
 
-        # Gráfico proyección acumulada hasta hoy (línea)
-        st.caption("Proyección visual acumulada durante el mes")
-        chart_data = pd.DataFrame({
-            'Día hábil': list(range(1, dias_habiles_hasta_hoy + 1)),
-            'Acumulado': [promedio_diario * i for i in range(1, dias_habiles_hasta_hoy + 1)]
-        })
-        chart = (
-            alt.Chart(chart_data)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X('Día hábil:Q', title='Día hábil del mes'),
-                y=alt.Y('Acumulado:Q', title='Regularizadas acumuladas'),
-                tooltip=['Día hábil', 'Acumulado']
-            )
-            .properties(
-                width=700,
-                height=400,
-                title="Avance de Regularizadas durante el mes"
-            )
-            .interactive()
+        # Datos para el gráfico
+        dias = list(range(1, dias_habiles_hasta_hoy+1))
+        acumulado = [promedio_diario*i for i in dias]
+        df_chart = pd.DataFrame({"Día hábil": dias, "Acumulado": acumulado})
+
+        # Gráfico base
+        base = alt.Chart(df_chart).mark_line(point=True).encode(
+            x=alt.X('Día hábil:Q', title='Día hábil'),
+            y=alt.Y('Acumulado:Q', title='Acumulado'),
+            tooltip=[alt.Tooltip('Día hábil:Q', title='Día hábil'), alt.Tooltip('Acumulado:Q')]
         )
+
+        # Líneas de hitos
+        hits = {"Meta mínima": meta_min, "Meta media": meta_med, "Meta máxima": meta_max}
+        reglas = []
+        for label, val in hits.items():
+            reglas.append(
+                alt.Chart(pd.DataFrame({'y': [val], 'label':[label]}))
+                .mark_rule(color='green', strokeDash=[4,4])
+                .encode(
+                    y='y:Q',
+                    tooltip=alt.Tooltip('label:N', title='Hito')
+                )
+            )
+
+        chart = alt.layer(base, *reglas).properties(
+            width=700, height=400,
+            title="Avance acumulado con hitos referenciales"
+        ).interactive()
+
         st.altair_chart(chart, use_container_width=True)
+
+        # Cita profesional
+        st.caption("💡 Como dijo Peter Drucker: “Lo que no se mide, no se puede mejorar.”")
 
 except Exception as e:
     st.error(f"❌ Error al procesar el archivo o generar el dashboard: {e}")

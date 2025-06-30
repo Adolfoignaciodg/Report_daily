@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import calendar
 from datetime import datetime
-import altair as alt  # <- para gráficos interactivos en resumen y detalle por Colaborador
+import altair as alt  # <- para gráficos interactivos en resumen y detalle por trabajador
+import matplotlib.pyplot as plt
 
 # Paleta de colores uniforme y agradable para ambos gráficos
 paleta_colores_anos = ['#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F', '#EDC948']
@@ -26,7 +27,7 @@ st.set_page_config(
 st.title("Dashboard Stock Operacional")
 
 # --- Selección de vista antes de cargar archivo ---
-menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Colaborador"])
+menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Trabajador"])
 
 # --- Subida de archivo solo si está en "Resumen General" ---
 if menu == "Resumen General":
@@ -85,43 +86,54 @@ try:
         col3.metric("Error 20", formato_miles_punto(total_20))
         col4.metric("Regularizadas", formato_miles_punto(total_reg))
 
-        # ---- Gráfico circular corregido ----
-        df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA'].copy()
-        df_reg['PROGRAMA'] = df_reg['PROGRAMA'].astype(str).str.strip().str.upper()
-        df_reg = df_reg[df_reg['PROGRAMA'] != '']
+        # Desglose de regularizadas por PROGRAMA con % y formato limpio
+        df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA']
+        programas = ['Tradicional', 'Reactiva', 'Chile Apoya', 'COVID']
+        conteo_programas = {p: len(df_reg[df_reg['PROGRAMA'].str.strip().str.upper() == p.upper()]) for p in programas}
+        total_prog = sum(conteo_programas.values())
+        
+        desglose_programas = []
+        for p in programas:
+            cant = conteo_programas[p]
+            porc = (cant / total_prog * 100) if total_prog > 0 else 0
+            desglose_programas.append(f"**{p}:** {formato_miles_punto(cant)} ({porc:.1f}%)")
+        st.markdown(" - ".join(desglose_programas))
 
-        programas = ['TRADICIONAL', 'REACTIVA', 'CHILE APOYA', 'COVID']
-        conteo_programas = df_reg['PROGRAMA'].value_counts().reindex(programas, fill_value=0).reset_index()
-        conteo_programas.columns = ['Programa', 'Cantidad']
+        # --- Gráfico circular con etiquetas visibles ---
+        if total_prog > 0:
+            fig, ax = plt.subplots(figsize=(6, 6))
+            sizes = [conteo_programas[p] for p in programas]
+            colors = paleta_colores_anos[:len(programas)]
 
-        total_cantidad = conteo_programas['Cantidad'].sum()
-        if total_cantidad > 0:
-            conteo_programas['Porcentaje'] = (conteo_programas['Cantidad'] / total_cantidad * 100).round(1)
-        else:
-            conteo_programas['Porcentaje'] = 0
+            def make_autopct(sizes):
+                def my_autopct(pct):
+                    total = sum(sizes)
+                    val = int(round(pct*total/100.0))
+                    return f"{val}\n({pct:.1f}%)"
+                return my_autopct
 
-        base = alt.Chart(conteo_programas).encode(
-            theta=alt.Theta(field="Cantidad", type="quantitative"),
-            color=alt.Color(field="Programa", type="nominal", scale=alt.Scale(scheme="tableau20")),
-        )
+            wedges, texts, autotexts = ax.pie(
+                sizes,
+                labels=programas,
+                autopct=make_autopct(sizes),
+                colors=colors,
+                textprops={'color':"black", 'weight':'bold', 'fontsize':12},
+                startangle=90,
+                pctdistance=0.8
+            )
+            ax.axis('equal')
+            plt.title("Desglose Programas Regularizadas", fontsize=16, weight='bold')
+            st.pyplot(fig)
 
-        chart_pie = base.mark_arc(innerRadius=50).encode(
-            tooltip=[
-                alt.Tooltip("Programa", title="Programa"),
-                alt.Tooltip("Cantidad", title="Cantidad"),
-                alt.Tooltip("Porcentaje", title="%")
-            ]
-        )
+        st.markdown("---")
+        st.subheader("Resumen por Colaborador y Tipo de Error")
 
-        text = base.mark_text(radiusOffset=20).encode(
-            text=alt.Text('Porcentaje:Q', format='.1f')
-        )
-
-        st.altair_chart((chart_pie + text).properties(
-            title="Distribución de Regularizadas por Programa",
-            height=400,
-            width=400
-        ), use_container_width=False)
+        df_resumen = df[df['TIPO_ERROR'].notna() & (df['TIPO_ERROR'].str.strip() != '')]
+        resumen = df_resumen.groupby(["Responsable", "TIPO_ERROR"]).size().unstack(fill_value=0)
+        resumen["TOTAL"] = resumen.sum(axis=1)
+        resumen = resumen.sort_values("TOTAL", ascending=False)
+        resumen_display = resumen.applymap(formato_miles_punto)
+        st.dataframe(resumen_display, use_container_width=True)
 
         # --- Gráfico Altair interactivo en Resumen General ---
         df_reg_historico = df_reg.copy()
@@ -163,6 +175,7 @@ try:
         )
         st.altair_chart(chart, use_container_width=True)
 
+
     elif menu == "Producción Total Mensual":
         st.subheader("Producción Total Mensual")
 
@@ -203,7 +216,7 @@ try:
         else:
             st.info("No hay operaciones REGULARIZADAS este mes.")
 
-    elif menu == "Detalle por Colaborador":
+    elif menu == "Detalle por Trabajador":
         responsables = sorted(df['Responsable'].dropna().unique())
         seleccionado = st.selectbox("Selecciona un responsable", responsables)
 
@@ -265,7 +278,7 @@ try:
 
         st.markdown("### Resumen mensual de regularizadas")
 
-        # --- Gráfico Altair interactivo en Detalle por Colaborador ---
+        # --- Gráfico Altair interactivo en Detalle por Trabajador ---
         df_reg_historico = df_resp[
             (df_resp['ESTADO FINAL'] == 'REGULARIZADA') &
             (df_resp['Fecha de cierre'].notna())
@@ -329,4 +342,3 @@ try:
 
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo: {e}")
-

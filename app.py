@@ -26,7 +26,7 @@ st.set_page_config(
 st.title("Dashboard Stock Operacional")
 
 # --- Selección de vista antes de cargar archivo ---
-menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Trabajador"])
+menu = st.sidebar.radio("Selecciona vista:", ["Resumen General", "Producción Total Mensual", "Detalle por Trabajador","proyección de meta"])
 
 # --- Subida de archivo solo si está en "Resumen General" ---
 if menu == "Resumen General":
@@ -324,6 +324,95 @@ try:
             st.dataframe(resumen_otros, use_container_width=True)
         else:
             st.info("No hay operaciones en otros estados para este responsable.")
+     elif menu == "Proyección de Meta":
+    st.title("📈 Proyección de Cumplimiento de Meta")
+    
+    # Filtro: Seleccionar responsable o todo el equipo
+    responsables = ["Todo el equipo"] + sorted(df['Responsable'].dropna().unique())
+    seleccionado = st.selectbox("Selecciona responsable", responsables)
+    
+    # Filtra según responsable
+    if seleccionado == "Todo el equipo":
+        df_filtrado = df[df['ESTADO FINAL'] == 'REGULARIZADA'].copy()
+    else:
+        df_filtrado = df[
+            (df['Responsable'] == seleccionado) &
+            (df['ESTADO FINAL'] == 'REGULARIZADA')
+        ].copy()
+
+    df_filtrado = df_filtrado[df_filtrado['Fecha de cierre'].notna()]
+    
+    # --- Cálculo de proyección ---
+    hoy = pd.Timestamp.now().normalize()
+    inicio_mes = hoy.replace(day=1)
+    
+    # Lista de feriados (puedes mejorar cargando un archivo o API)
+    feriados = [
+        pd.Timestamp("2025-06-21"),  # Pueblos originarios
+        pd.Timestamp("2025-07-16"),  # Virgen del Carmen
+        pd.Timestamp("2025-09-18"),  # Fiestas Patrias
+        pd.Timestamp("2025-09-19"),  
+        # Agrega más...
+    ]
+
+    # Días hábiles del mes
+    calendario = pd.date_range(start=inicio_mes, end=hoy.replace(day=31), freq='B')
+    calendario = [d for d in calendario if d not in feriados]
+    dias_habiles_totales = len([d for d in calendario if d.month == hoy.month])
+    dias_habiles_hasta_hoy = len([d for d in calendario if d <= hoy])
+    dias_habiles_restantes = dias_habiles_totales - dias_habiles_hasta_hoy
+
+    # Avance actual
+    reg_actual = len(df_filtrado[
+        (df_filtrado['Fecha de cierre'] >= inicio_mes) &
+        (df_filtrado['Fecha de cierre'] <= hoy)
+    ])
+
+    # Promedio diario
+    promedio_diario = reg_actual / dias_habiles_hasta_hoy if dias_habiles_hasta_hoy > 0 else 0
+    proyeccion = reg_actual + (promedio_diario * dias_habiles_restantes)
+
+    st.metric("Avance actual (mes)", formato_miles_punto(reg_actual))
+    st.metric("Promedio diario (hábil)", f"{promedio_diario:.2f}")
+    st.metric("Proyección fin de mes", formato_miles_punto(int(proyeccion)))
+
+    # --- Meta esperada ---
+    if seleccionado == "Todo el equipo":
+        meta_min = 350 * (len(responsables) - 1)  # -1 porque 'Todo el equipo' es extra
+        meta_max = 850 * (len(responsables) - 1)
+    else:
+        meta_min = 350
+        meta_max = 850
+    
+    st.metric("Meta mínima", formato_miles_punto(meta_min))
+    st.metric("Meta máxima", formato_miles_punto(meta_max))
+
+    # --- Evaluación del ritmo ---
+    if proyeccion >= meta_min:
+        st.success("👍 Con el ritmo actual cumplirías al menos la meta mínima.")
+    else:
+        st.warning("⚠️ Al ritmo actual, no se cumpliría la meta mínima.")
+    
+    if proyeccion >= meta_max:
+        st.info("✅ Estás proyectando sobre la meta máxima del rango.")
+
+    # --- Gráfico ---
+    st.caption("Proyección visual")
+    chart_data = pd.DataFrame({
+        'Día hábil': list(range(1, dias_habiles_hasta_hoy + 1)),
+        'Acumulado': [promedio_diario * i for i in range(1, dias_habiles_hasta_hoy + 1)]
+    })
+    chart = (
+        alt.Chart(chart_data)
+        .mark_line()
+        .encode(
+            x=alt.X('Día hábil:Q', title='Día hábil del mes'),
+            y=alt.Y('Acumulado:Q', title='Regularizadas acumuladas'),
+            tooltip=['Día hábil', 'Acumulado']
+        )
+        .properties(title="Avance de Regularizadas durante el mes")
+    )
+    st.altair_chart(chart, use_container_width=True)
 
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo: {e}")

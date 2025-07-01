@@ -325,13 +325,14 @@ try:
         else:
             st.info("No hay operaciones en otros estados para este responsable.")
 
-    elif menu == "proyección de meta":
+
+    elif menu == "Proyección de Meta":
         st.title("📈 Proyección de Cumplimiento de Meta")
-        
+
         # Filtro: Seleccionar responsable o todo el equipo
         responsables = ["Todo el equipo"] + sorted(df['Responsable'].dropna().unique())
         seleccionado = st.selectbox("Selecciona responsable", responsables)
-        
+
         # Filtra según responsable y solo regularizadas con fecha de cierre válida
         if seleccionado == "Todo el equipo":
             df_filtrado = df[(df['ESTADO FINAL'] == 'REGULARIZADA') & df['Fecha de cierre'].notna()].copy()
@@ -427,5 +428,3 @@ try:
 
 except Exception as e:
     st.error(f"❌ Error al procesar el archivo o generar el dashboard: {e}")
-
-

@@ -139,7 +139,7 @@ try:
         st.markdown(" - ".join(desglose_programas))
 
         st.markdown("---")
-        st.subheader("Resumen de op asignadas totales por Colaborador y Tipo de Error")
+        st.subheader("✅ Esta sección se está ejecutando")
 
         df_resumen = df[df['TIPO_ERROR'].notna() & (df['TIPO_ERROR'].str.strip() != '')]
         resumen = df_resumen.groupby(["Responsable", "TIPO_ERROR"]).size().unstack(fill_value=0)

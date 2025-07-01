@@ -200,7 +200,7 @@ try:
             st.info("No hay operaciones REGULARIZADAS este mes.")
 
 
-    elif menu == "Detalle por Trabajador":
+      elif menu == "Detalle por Trabajador":
         responsables = sorted(df['Responsable'].dropna().unique())
         seleccionado = st.selectbox("Selecciona un responsable", responsables)
 

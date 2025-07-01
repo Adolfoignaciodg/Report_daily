@@ -7,7 +7,6 @@ import altair as alt
 # Paleta de colores uniforme y agradable para ambos gráficos
 paleta_colores_anos = ['#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F', '#EDC948']
 
-# Función para formatear números con separador de miles como punto y sin decimales
 def formato_miles_punto(x):
     try:
         if pd.isna(x):
@@ -15,6 +14,73 @@ def formato_miles_punto(x):
         return f"{int(x):,}".replace(",", ".")
     except:
         return x
+
+def cargar_y_limpiar_datos(archivo):
+    df_20 = pd.read_excel(archivo, sheet_name="STOCK 20")
+    df_20["TIPO_ERROR"] = "Error 20"
+
+    df_28 = pd.read_excel(archivo, sheet_name="STOCK 28")
+    df_28["TIPO_ERROR"] = "Error 28"
+
+    df = pd.concat([df_20, df_28], ignore_index=True)
+    df.columns = df.columns.str.strip()
+
+    filas_antes = len(df)
+    df.dropna(how='all', inplace=True)
+    filas_despues = len(df)
+    filas_eliminadas = filas_antes - filas_despues
+
+    df = df[df['Responsable'].notna() & (df['Responsable'].str.strip() != '')]
+    df['Responsable'] = df['Responsable'].astype(str).str.strip().str.lower().str.capitalize()
+    df['ESTADO FINAL'] = df['ESTADO FINAL'].astype(str).str.strip().str.upper()
+    df['FECHA'] = pd.to_datetime(df['FECHA'], dayfirst=True, errors='coerce')
+    df['Fecha de cierre'] = pd.to_datetime(df['Fecha de cierre'], dayfirst=True, errors='coerce')
+
+    return df, filas_eliminadas
+
+def mostrar_metricas(totales_dict):
+    cols = st.columns(len(totales_dict))
+    for col, (label, valor) in zip(cols, totales_dict.items()):
+        col.metric(label, formato_miles_punto(valor))
+
+def grafico_regularizadas_mes_ano(df_reg_historico, titulo):
+    años = sorted(df_reg_historico['Año'].unique())
+    todos_los_meses = pd.DataFrame([(a, m) for a in años for m in range(1, 13)], columns=['Año', 'Mes'])
+
+    resumen_mensual = df_reg_historico.groupby(['Año', 'Mes']).size().reset_index(name='Cantidad')
+    resumen_mensual = pd.merge(todos_los_meses, resumen_mensual, on=['Año', 'Mes'], how='left').fillna(0)
+    resumen_mensual['Cantidad'] = resumen_mensual['Cantidad'].astype(int)
+    resumen_mensual['Mes_nombre'] = resumen_mensual['Mes'].apply(lambda x: calendar.month_name[x])
+
+    meses_orden = list(calendar.month_name)[1:]  # Enero a Diciembre
+
+    chart = (
+        alt.Chart(resumen_mensual)
+        .mark_bar()
+        .encode(
+            x=alt.X('Mes_nombre:N', sort=meses_orden, title='Mes'),
+            y=alt.Y('Cantidad:Q', title='Cantidad de Regularizadas'),
+            color=alt.Color('Año:N', scale=alt.Scale(range=paleta_colores_anos), legend=alt.Legend(title="Año")),
+            xOffset='Año:N',
+            tooltip=[
+                alt.Tooltip('Mes_nombre:N', title='Mes'),
+                alt.Tooltip('Año:N', title='Año'),
+                alt.Tooltip('Cantidad:Q', title='Cantidad')
+            ]
+        )
+        .properties(width=700, height=400, title=titulo)
+        .interactive()
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+    return resumen_mensual, meses_orden
+
+def mostrar_tabla_resumen(resumen_mensual, meses_orden):
+    tabla_resumen = resumen_mensual.pivot_table(index='Mes_nombre', columns='Año', values='Cantidad', fill_value=0)
+    tabla_resumen = tabla_resumen.reindex(meses_orden)
+    tabla_resumen_formateada = tabla_resumen.applymap(formato_miles_punto)
+    st.subheader("Tabla de Regularizadas por Mes y Año")
+    st.dataframe(tabla_resumen_formateada, use_container_width=True)
 
 # Configuración de la página
 st.set_page_config(
@@ -41,49 +107,24 @@ else:
     archivo = "excel/reporte.xlsx"
 
 try:
-    # --- CARGA Y LIMPIEZA ---
-    df_20 = pd.read_excel(archivo, sheet_name="STOCK 20")
-    df_20["TIPO_ERROR"] = "Error 20"
-
-    df_28 = pd.read_excel(archivo, sheet_name="STOCK 28")
-    df_28["TIPO_ERROR"] = "Error 28"
-
-    df = pd.concat([df_20, df_28], ignore_index=True)
-    df.columns = df.columns.str.strip()
-
-    filas_antes = len(df)
-    df.dropna(how='all', inplace=True)
-    filas_despues = len(df)
-    filas_eliminadas = filas_antes - filas_despues
+    df, filas_eliminadas = cargar_y_limpiar_datos(archivo)
 
     if filas_eliminadas > 0:
         st.info(f"ℹ️ Se eliminaron {filas_eliminadas} filas completamente vacías del archivo.")
 
-    df = df[df['Responsable'].notna() & (df['Responsable'].str.strip() != '')]
-    df['Responsable'] = df['Responsable'].astype(str).str.strip().str.lower().str.capitalize()
-    df['ESTADO FINAL'] = df['ESTADO FINAL'].astype(str).str.strip().str.upper()
-    df['FECHA'] = pd.to_datetime(df['FECHA'], dayfirst=True, errors='coerce')
-    df['Fecha de cierre'] = pd.to_datetime(df['Fecha de cierre'], dayfirst=True, errors='coerce')
-
-    estados_na = df[df['ESTADO FINAL'].isna()]
-    if not estados_na.empty:
-        st.warning(f"⚠️ Atención: Se encontraron {len(estados_na)} registros sin ESTADO FINAL.")
-        st.caption("Primeros registros sin estado:")
-        st.dataframe(estados_na.head(), use_container_width=True)
-
     # --------------------- VISTAS ---------------------
     if menu == "Resumen General":
-        # Métricas generales
         total_stock = len(df)
         total_20 = len(df[df['TIPO_ERROR'] == 'Error 20'])
         total_28 = len(df[df['TIPO_ERROR'] == 'Error 28'])
         total_reg = len(df[df['ESTADO FINAL'] == 'REGULARIZADA'])
 
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("TOTAL STOCK", formato_miles_punto(total_stock))
-        col2.metric("Error 28", formato_miles_punto(total_28))
-        col3.metric("Error 20", formato_miles_punto(total_20))
-        col4.metric("Regularizadas", formato_miles_punto(total_reg))
+        mostrar_metricas({
+            "TOTAL STOCK": total_stock,
+            "Error 28": total_28,
+            "Error 20": total_20,
+            "Regularizadas": total_reg
+        })
 
         # Desglose regularizadas por programa con porcentaje
         df_reg = df[df['ESTADO FINAL'] == 'REGULARIZADA']
@@ -113,49 +154,9 @@ try:
         df_reg_historico['Año'] = df_reg_historico['Fecha de cierre'].dt.year
         df_reg_historico['Mes'] = df_reg_historico['Fecha de cierre'].dt.month
 
-        años = sorted(df_reg_historico['Año'].unique())
-        todos_los_meses = pd.DataFrame([(a, m) for a in años for m in range(1, 13)], columns=['Año', 'Mes'])
+        resumen_mensual, meses_orden = grafico_regularizadas_mes_ano(df_reg_historico, "Regularizadas mes a mes por año (Barras agrupadas)")
+        mostrar_tabla_resumen(resumen_mensual, meses_orden)
 
-        resumen_mensual = df_reg_historico.groupby(['Año', 'Mes']).size().reset_index(name='Cantidad')
-        resumen_mensual = pd.merge(todos_los_meses, resumen_mensual, on=['Año', 'Mes'], how='left').fillna(0)
-        resumen_mensual['Cantidad'] = resumen_mensual['Cantidad'].astype(int)
-        resumen_mensual['Mes_nombre'] = resumen_mensual['Mes'].apply(lambda x: calendar.month_name[x])
-
-        meses_orden = list(calendar.month_name)[1:]  # Enero a Diciembre
-
-        chart = (
-            alt.Chart(resumen_mensual)
-            .mark_bar()
-            .encode(
-                x=alt.X('Mes_nombre:N', sort=meses_orden, title='Mes'),
-                y=alt.Y('Cantidad:Q', title='Cantidad de Regularizadas'),
-                color=alt.Color('Año:N',
-                                scale=alt.Scale(range=paleta_colores_anos),
-                                legend=alt.Legend(title="Año")),
-                xOffset='Año:N',
-                tooltip=[
-                    alt.Tooltip('Mes_nombre:N', title='Mes'),
-                    alt.Tooltip('Año:N', title='Año'),
-                    alt.Tooltip('Cantidad:Q', title='Cantidad')
-                ]
-            )
-            .properties(
-                width=700,
-                height=400,
-                title="Regularizadas mes a mes por año (Barras agrupadas)"
-            )
-            .interactive()
-        )
-        st.altair_chart(chart, use_container_width=True)
-
-        # --- Tabla resumen con meses como filas y años como columnas ---
-        tabla_resumen = resumen_mensual.pivot_table(index='Mes_nombre', columns='Año', values='Cantidad', fill_value=0)
-        tabla_resumen = tabla_resumen.reindex(meses_orden)
-
-        tabla_resumen_formateada = tabla_resumen.applymap(formato_miles_punto)
-
-        st.subheader("Tabla de Regularizadas por Mes y Año")
-        st.dataframe(tabla_resumen_formateada, use_container_width=True)
     elif menu == "Producción Total Mensual":
         st.subheader("Producción Total Mensual")
 
@@ -258,7 +259,6 @@ try:
 
         st.markdown("### Resumen mensual de regularizadas")
 
-        # Gráfico Altair por trabajador
         df_reg_historico = df_resp[
             (df_resp['ESTADO FINAL'] == 'REGULARIZADA') &
             (df_resp['Fecha de cierre'].notna())
@@ -266,40 +266,7 @@ try:
         df_reg_historico['Año'] = df_reg_historico['Fecha de cierre'].dt.year
         df_reg_historico['Mes'] = df_reg_historico['Fecha de cierre'].dt.month
 
-        años = sorted(df_reg_historico['Año'].unique())
-        todos_los_meses = pd.DataFrame([(a,m) for a in años for m in range(1,13)], columns=['Año', 'Mes'])
-
-        resumen_mensual = df_reg_historico.groupby(['Año', 'Mes']).size().reset_index(name='Cantidad')
-        resumen_mensual = pd.merge(todos_los_meses, resumen_mensual, on=['Año','Mes'], how='left').fillna(0)
-        resumen_mensual['Cantidad'] = resumen_mensual['Cantidad'].astype(int)
-        resumen_mensual['Mes_nombre'] = resumen_mensual['Mes'].apply(lambda x: calendar.month_name[x])
-
-        meses_orden = list(calendar.month_name)[1:]  # Enero a Diciembre
-
-        chart = (
-            alt.Chart(resumen_mensual)
-            .mark_bar()
-            .encode(
-                x=alt.X('Mes_nombre:N', sort=meses_orden, title='Mes'),
-                y=alt.Y('Cantidad:Q', title='Cantidad de Regularizadas'),
-                color=alt.Color('Año:N',
-                                scale=alt.Scale(range=paleta_colores_anos),
-                                legend=alt.Legend(title="Año")),
-                xOffset='Año:N',
-                tooltip=[
-                    alt.Tooltip('Mes_nombre:N', title='Mes'),
-                    alt.Tooltip('Año:N', title='Año'),
-                    alt.Tooltip('Cantidad:Q', title='Cantidad')
-                ]
-            )
-            .properties(
-                width=700,
-                height=400,
-                title=f"Regularizadas mes a mes por año - {seleccionado}"
-            )
-            .interactive()
-        )
-        st.altair_chart(chart, use_container_width=True)
+        resumen_mensual, meses_orden = grafico_regularizadas_mes_ano(df_reg_historico, f"Regularizadas mes a mes por año - {seleccionado}")
 
         st.markdown("### Detalle mensual de operaciones ATRASADAS (todo histórico)")
         if not atrasadas.empty:
@@ -348,64 +315,29 @@ try:
         ]
 
         calendario = pd.date_range(start=inicio_mes, end=fin_mes, freq='B')
-        calendario = [d for d in calendario if d not in feriados]
-        dias_habiles_hasta_hoy = len([d for d in calendario if d <= hoy])
-        dias_habiles_restantes = len(calendario) - dias_habiles_hasta_hoy
+        calendario = [d for d in calendario if d not in feriados and d <= hoy]
 
-        reg_actual = len(df_filtrado[(df_filtrado['Fecha de cierre'] >= inicio_mes) & (df_filtrado['Fecha de cierre'] <= hoy)])
-        promedio_diario = reg_actual / dias_habiles_hasta_hoy if dias_habiles_hasta_hoy else 0
-        proyeccion = reg_actual + promedio_diario * dias_habiles_restantes
+        df_filtrado['Fecha'] = pd.to_datetime(df_filtrado['Fecha de cierre']).dt.normalize()
 
-        col1, col2, col3, col4, col5 = st.columns(5)
-        col1.metric("Avance actual (mes)", formato_miles_punto(reg_actual))
-        col2.metric("Promedio diario (hábil)", f"{promedio_diario:.2f}")
-        col3.metric("Proyección fin de mes", formato_miles_punto(int(proyeccion)))
+        df_mes = df_filtrado[(df_filtrado['Fecha'] >= inicio_mes) & (df_filtrado['Fecha'] <= hoy)]
+        dias_operativos = len(calendario)
 
-        if seleccionado == "Todo el equipo":
-            n = len(responsables) - 1
-            meta_min, meta_med, meta_max = 350*n, 550*n, 850*n
-        else:
-            meta_min, meta_med, meta_max = 350, 550, 850
+        # Operaciones realizadas por día
+        ops_por_dia = df_mes.groupby('Fecha').size()
+        ops_por_dia = ops_por_dia.reindex(calendario, fill_value=0)
 
-        col4.metric("Meta mínima", formato_miles_punto(meta_min))
-        col5.metric("Meta máxima", formato_miles_punto(meta_max))
+        ops_cum = ops_por_dia.cumsum()
 
-        if proyeccion >= meta_max:
-            st.success("✅ Proyectas sobre la meta máxima.")
-        elif proyeccion >= meta_min:
-            st.success("👍 Cumplirías la meta mínima.")
-        else:
-            st.warning("⚠️ No alcanzarías la meta mínima.")
+        # Meta mensual (ajustar según necesidad)
+        meta_mensual = 210
+        st.write(f"Meta mensual: {meta_mensual}")
 
-        dias = list(range(1, dias_habiles_hasta_hoy+1))
-        acumulado = [promedio_diario*i for i in dias]
-        df_chart = pd.DataFrame({"Día hábil": dias, "Acumulado": acumulado})
+        st.line_chart(ops_cum)
 
-        base = alt.Chart(df_chart).mark_line(point=True).encode(
-            x=alt.X('Día hábil:Q', title='Día hábil'),
-            y=alt.Y('Acumulado:Q', title='Acumulado'),
-            tooltip=[alt.Tooltip('Día hábil:Q', title='Día hábil'), alt.Tooltip('Acumulado:Q')]
-        )
-
-        hits = {"Meta mínima": meta_min, "Meta media": meta_med, "Meta máxima": meta_max}
-        reglas = []
-        for label, val in hits.items():
-            reglas.append(
-                alt.Chart(pd.DataFrame({'y': [val], 'label':[label]}))
-                .mark_rule(color='green', strokeDash=[4,4])
-                .encode(
-                    y='y:Q',
-                    tooltip=alt.Tooltip('label:N', title='Hito')
-                )
-            )
-
-        chart = alt.layer(base, *reglas).properties(
-            width=700, height=400,
-            title="Avance acumulado con hitos referenciales"
-        ).interactive()
-
-        st.altair_chart(chart, use_container_width=True)
-        st.caption("💡 Como dijo Peter Drucker: “Lo que no se mide, no se puede mejorar.”")
+        ultimo_dia = calendario[-1] if calendario else hoy
+        proyeccion = (ops_cum.iloc[-1] / len(calendario)) * len(pd.date_range(inicio_mes, fin_mes, freq='B'))
+        st.write(f"Proyección para fin de mes: {int(proyeccion)}")
 
 except Exception as e:
     st.error(f"❌ Error al procesar el archivo o generar el dashboard: {e}")
+

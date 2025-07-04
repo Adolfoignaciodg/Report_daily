@@ -402,4 +402,3 @@ try:
 
 except Exception as e:
     st.error(f"❌ Error al procesar el archivo o generar el dashboard: {e}")
-
